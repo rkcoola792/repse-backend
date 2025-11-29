@@ -6,6 +6,7 @@ const { isStrongPassword } = require("validator");
 const authRouter = express.Router();
 
 authRouter.post("/signup", checkEmailExists, async (req, res) => {
+    console.log(req.body);
   try {
     const { name, email, password } = req.body;
     console.log(name, email, password);
@@ -23,6 +24,24 @@ authRouter.post("/signup", checkEmailExists, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: "Server error" + error.message });
   }
+});
+
+authRouter.post("/signin", async (req, res) => {
+    
+    try {
+      const { email, password } = req.body;
+      const user = await User.findOne({ email });
+      if (!user) {
+        return res.status(400).json({ error: "User not found" });
+      }
+      const isPasswordValid = await user.comparePassword(password);
+      if (!isPasswordValid) {
+        return res.status(400).json({ error: "Invalid password" });
+      }
+      res.status(200).json({ message: "User logged in successfully", user });
+    } catch (error) {
+      res.status(500).json({ error: "Server error" + error.message });
+    }
 });
 
 module.exports = authRouter;
