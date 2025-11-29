@@ -6,6 +6,7 @@ const db = require("./config/database.js");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const authRouter = require('./routes/auth.js');
+const productRouter = require('./routes/product.js');
 app.use(
   cors({
     origin: process.env.BASE_URL,
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }))
 
 app.use("/", authRouter);
+app.use("/", productRouter);
 
 
 db().then(() => {
