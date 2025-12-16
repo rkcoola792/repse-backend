@@ -22,6 +22,14 @@ const productSchema = new mongoose.Schema(
       type: [String],
       required: true,
     },
+    topSelling: {
+      type: Boolean,
+      default: false,
+    },
+    newArrival: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

@@ -38,6 +38,14 @@ const orderSchema = new mongoose.Schema(
       enum: ["credit_card", "upi", "cash_on_delivery"],
       required: true,
     },
+    payementStatus: {
+      type: String,
+      enum: ["paid", "unpaid", "refunded"],
+      default: "unpaid",
+    },
+    paymentId: {
+      type: String,
+    },
     trackingNumber: {
       type: String,
     },
