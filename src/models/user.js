@@ -2,26 +2,42 @@ const mongoose = require("mongoose");
 const { createHash, compareHash } = require("../utils/createHash");
 const jwt = require("jsonwebtoken");
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+    lastName: {
+      type: String,
+    },
+    address: {
+      type: String,
+    },
+    mobile: {
+      type: String,
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
   },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-  role: {
-    type: String,
-    enum: ["user", "admin"],
-    default: "user",
-  },
-}, { timestamps: true });
+  { timestamps: true }
+);
 
 userSchema.pre("save", async function (next) {
   const user = this;

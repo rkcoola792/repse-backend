@@ -10,13 +10,20 @@ authRouter.post("/signup", checkEmailExists, async (req, res) => {
   console.log(req.body);
   try {
     const { name, email, password } = req.body;
-    console.log(name, email, password);
     const strongPassword = await isStrongPassword(password);
     if (!strongPassword) {
       return res.status(400).json({ error: "Password is not strong enough" });
     }
     const trimmedName = name.trim();
-    const newUser = new User({ name: trimmedName, email, password });
+    const newUser = new User({
+      name: trimmedName,
+      email,
+      password,
+      mobile: "",
+      address: "",
+      gender: "male",
+      lastName: "",
+    });
 
     await newUser.save();
     res
