@@ -3,7 +3,7 @@ const paymentRouter = express.Router();
 const razorpayInstance = require("../utils/razorpay");
 const userAuth = require("../middlewares/auth");
 const Order = require("../models/payment");
-const validateWebhookSignature = require("razorpay/dist/utils/razorpay-utils");
+const { validatePaymentVerification, validateWebhookSignature } = require('./dist/utils/razorpay-utils');
 paymentRouter.post("/create-order", userAuth, async (req, res) => {
   try {
     const { amount, currency, receipt, notes } = req.body;
@@ -41,6 +41,7 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
     res.status(500).json({ error: "Server error: " + error.message });
   }
 });
+
 paymentRouter.post("/payment/webhook", async (req, res) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
