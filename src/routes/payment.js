@@ -3,7 +3,7 @@ const paymentRouter = express.Router();
 const razorpayInstance = require("../utils/razorpay");
 const userAuth = require("../middlewares/auth");
 const Order = require("../models/payment");
-const { validatePaymentVerification, validateWebhookSignature } = require('./dist/utils/razorpay-utils');
+const crypto = require("crypto");
 paymentRouter.post("/create-order", userAuth, async (req, res) => {
   try {
     const { amount, currency, receipt, notes } = req.body;
@@ -42,34 +42,50 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
   }
 });
 
+const crypto = require("crypto"); // Add this at the top of your file
+
 paymentRouter.post("/payment/webhook", async (req, res) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.get("X-Razorpay-Signature");
-    const isWebhookValid = validateWebhookSignature(
-      JSON.stringify(req.body),
-      signature,
-      webhookSecret
-    );
+    
+    // Create the expected signature using crypto
+    const body = JSON.stringify(req.body);
+    const expectedSignature = crypto
+      .createHmac("sha256", webhookSecret)
+      .update(body)
+      .digest("hex");
+    
+    // Validate signature
+    const isWebhookValid = expectedSignature === signature;
+    
     if (!isWebhookValid) {
       console.log("webhook not valid");
       return res.status(400).json({ error: "Invalid webhook signature" });
     }
+    
     console.log("webhook valid");
 
-    //update my payment details in database
+    // Update payment details in database
     const paymentDetails = req.body.payload.payment.entity;
     console.log("payment details", paymentDetails);
+    
     const paymentOrder = await Order.findOne({
       orderId: paymentDetails.order_id,
     });
+    
+    if (!paymentOrder) {
+      console.log("Payment order not found");
+      return res.status(404).json({ error: "Order not found" });
+    }
+    
     console.log("found payment order", paymentOrder);
 
     paymentOrder.status = paymentDetails.status;
     await paymentOrder.save();
     console.log("Payment order updated:", paymentOrder);
 
-    //return scuccess response to razorpay
+    // Return success response to razorpay
     res.status(200).json({ status: "ok" });
   } catch (error) {
     console.error("Error processing webhook:", error);
