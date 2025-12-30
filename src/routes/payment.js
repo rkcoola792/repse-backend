@@ -50,6 +50,7 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
     
     // Create the expected signature using crypto
     const body = JSON.stringify(req.body);
+    console.log("body", body);
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)
       .update(body)
