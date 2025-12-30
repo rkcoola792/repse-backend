@@ -44,11 +44,11 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
 paymentRouter.post("/payment/webhook", async (req, res) => {
   try {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-    const signature = req.headers["X-Razorpay-Signature"];
+    const signature = req.get("X-Razorpay-Signature");
     const isWebhookValid = validateWebhookSignature(
       JSON.stringify(req.body),
       signature,
-      process.env.RAZORPAY_WEBHOOK_SECRET
+      webhookSecret
     );
     if (!isWebhookValid) {
       return res.status(400).json({ error: "Invalid webhook signature" });
@@ -62,6 +62,7 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
 
     paymentOrder.status = paymentDetails.status;
     await paymentOrder.save();
+    console.log("Payment order updated:", paymentOrder);
 
     //return scuccess response to razorpay
     res.status(200).json({ status: "ok" });
