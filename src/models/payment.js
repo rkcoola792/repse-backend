@@ -51,6 +51,10 @@ const paymentOrderSchema = new mongoose.Schema(
       enum: ["created", "authorized", "captured", "refunded", "failed"],
       default: "created",
     },
+   items: {
+      type: Array,
+      default: [],
+    },
     orderId: {
       type: String,
       sparse: true, // Razorpay order ID after creation
