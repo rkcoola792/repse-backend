@@ -26,6 +26,7 @@ productRouter.post("/product", userAuth, adminAuth, async (req, res) => {
       images,
       newArrival,
       topSelling,
+      variants,
     } = req.body;
     const newProduct = new Product({
       name,
@@ -35,6 +36,7 @@ productRouter.post("/product", userAuth, adminAuth, async (req, res) => {
       images,
       newArrival,
       topSelling,
+      variants,
     });
     await newProduct.save();
     res.status(200).json({

@@ -3,9 +3,11 @@ const User = require("../models/user");
 
 const userAuth = async (req, res, next) => {
   const token = req.cookies.token;
+  console.log("Auth Middleware Token:", token);
   try {
     if (!token) {
-      return res.status(401).send({ error: "Unauthorized" });
+      console.log("No token found in request");
+      return res.status(401).send({ error: "Unauthorized access" });
     }
     const decoded = await jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
