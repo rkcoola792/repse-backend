@@ -12,6 +12,11 @@ const paymentOrderSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    deliveryStatus: {
+      type: String,
+      enum: ["pending", "shipped", "delivered", "cancelled"],
+      default: "pending",
+    },
     currency: {
       type: String,
       required: true,

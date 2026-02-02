@@ -3,6 +3,7 @@ const paymentRouter = express.Router();
 const razorpayInstance = require("../utils/razorpay");
 const userAuth = require("../middlewares/auth");
 const Order = require("../models/payment");
+const adminAuth = require("../middlewares/adminAuth");
 const crypto = require("crypto");
 paymentRouter.post("/create-order", userAuth, async (req, res) => {
   console.log("create order body", req.body);
@@ -37,12 +38,54 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
     const savedOrder = await newOrder.save();
     res.status(200).json({
       ...savedOrder.toJSON(),
-      keyId: process.env.RAZORPAY_LIVE_API_KEY_ID,
+      keyId: process.env.RAZORPAY_TEST_KEY_ID,
     });
   } catch (error) {
     res.status(500).json({ error: "Server error: " + error.message });
   }
 });
+
+paymentRouter.get("/get-orders", userAuth, adminAuth, async (req, res) => {
+  try {
+    const orders = await Order.find({}).sort({
+      createdAt: -1,
+    });
+    res.status(200).json(orders);
+  } catch (error) {
+    res.status(500).json({ error: "Server error: " + error.message });
+  }
+});
+
+paymentRouter.put(
+  "/update-delivery-status",
+  userAuth,
+  adminAuth,
+  async (req, res) => {
+    console.log("update delivery status body", req.body);
+    try {
+      const { deliveryStatus, orderId } = req.body;
+
+      const validStatuses = ["pending", "shipped", "delivered", "cancelled"];
+      if (!validStatuses.includes(deliveryStatus)) {
+        return res.status(400).json({ error: "Invalid delivery status" });
+      }
+
+      const updatedOrder = await Order.findByIdAndUpdate(
+        orderId,
+        { deliveryStatus },
+        { new: true },
+      );
+
+      if (!updatedOrder) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      res.status(200).json(updatedOrder);
+    } catch (error) {
+      res.status(500).json({ error: "Server error: " + error.message });
+    }
+  },
+);
 
 paymentRouter.post("/payment/webhook", async (req, res) => {
   try {
@@ -51,7 +94,6 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
 
     // Create the expected signature using crypto
     const body = JSON.stringify(req.body);
-    console.log("body", body);
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)
       .update(body)
