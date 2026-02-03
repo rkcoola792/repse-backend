@@ -50,13 +50,21 @@ const paymentOrderSchema = new mongoose.Schema(
           "Please provide a valid email",
         ],
       },
+      mobile: {
+        type: String,
+        trim: true,
+      },
+      address: {
+        type: String,
+        trim: true,
+      },
     },
     status: {
       type: String,
       enum: ["created", "authorized", "captured", "refunded", "failed"],
       default: "created",
     },
-   items: {
+    items: {
       type: Array,
       default: [],
     },
@@ -71,7 +79,7 @@ const paymentOrderSchema = new mongoose.Schema(
   },
   {
     timestamps: true, // Adds createdAt and updatedAt
-  }
+  },
 );
 
 // Index for faster queries
