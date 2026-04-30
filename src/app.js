@@ -11,8 +11,8 @@ const paymentRouter = require('./routes/payment.js');
 const userRouter = require('./routes/user.js');
 app.use(
   cors({
-    origin: "*",
-    credentials: false,
+    origin: (origin, callback) => callback(null, origin || "*"),
+    credentials: true,
   })
 );
 app.use(cookieParser());
