@@ -3,12 +3,28 @@ const paymentRouter = express.Router();
 const razorpayInstance = require("../utils/razorpay");
 const userAuth = require("../middlewares/auth");
 const Order = require("../models/payment");
+const Product = require("../models/products");
 const adminAuth = require("../middlewares/adminAuth");
 const crypto = require("crypto");
 paymentRouter.post("/create-order", userAuth, async (req, res) => {
   console.log("create order body", req.body);
   try {
     const { amount, currency, receipt, notes, items } = req.body;
+
+    const populatedItems = await Promise.all(
+      (items || []).map(async (item) => {
+        const product = await Product.findById(item.productId);
+        return {
+          productId: item.productId,
+          name: product ? product.name : item.name,
+          image: product ? product.images?.[0] : item.image,
+          size: item.size,
+          quantity: item.quantity,
+          price: product ? product.price : item.price,
+        };
+      }),
+    );
+
     const options = {
       amount: amount * 100,
       currency,
@@ -32,7 +48,7 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
       notes: order.notes,
       status: order.status,
       orderId: order.id,
-      items: items || [],
+      items: populatedItems,
     });
 
     const savedOrder = await newOrder.save();
@@ -40,6 +56,35 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
       ...savedOrder.toJSON(),
       keyId: process.env.RAZORPAY_TEST_KEY_ID,
     });
+  } catch (error) {
+    res.status(500).json({ error: "Server error: " + error.message });
+  }
+});
+
+paymentRouter.get("/my-orders", userAuth, async (req, res) => {
+  try {
+    const orders = await Order.find({ userId: req.user._id }).sort({
+      createdAt: -1,
+    });
+    res.status(200).json(orders);
+  } catch (error) {
+    res.status(500).json({ error: "Server error: " + error.message });
+  }
+});
+
+paymentRouter.get("/order/:id", userAuth, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+    if (
+      order.userId.toString() !== req.user._id.toString() &&
+      req.user.role !== "admin"
+    ) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    res.status(200).json(order);
   } catch (error) {
     res.status(500).json({ error: "Server error: " + error.message });
   }
@@ -65,7 +110,7 @@ paymentRouter.put(
     try {
       const { deliveryStatus, orderId } = req.body;
 
-      const validStatuses = ["pending", "shipped", "delivered", "cancelled"];
+      const validStatuses = ["processing", "intransit", "delivered", "cancelled"];
       if (!validStatuses.includes(deliveryStatus)) {
         return res.status(400).json({ error: "Invalid delivery status" });
       }

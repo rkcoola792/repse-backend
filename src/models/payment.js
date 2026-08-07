@@ -1,5 +1,36 @@
 const mongoose = require("mongoose");
 
+const orderItemSchema = new mongoose.Schema(
+  {
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+    },
+    name: {
+      type: String,
+      trim: true,
+    },
+    image: {
+      type: String,
+      trim: true,
+    },
+    size: {
+      type: String,
+      trim: true,
+    },
+    quantity: {
+      type: Number,
+      min: 1,
+      default: 1,
+    },
+    price: {
+      type: Number,
+      min: 0,
+    },
+  },
+  { _id: false },
+);
+
 const paymentOrderSchema = new mongoose.Schema(
   {
     userId: {
@@ -14,8 +45,8 @@ const paymentOrderSchema = new mongoose.Schema(
     },
     deliveryStatus: {
       type: String,
-      enum: ["pending", "shipped", "delivered", "cancelled"],
-      default: "pending",
+      enum: ["processing", "intransit", "delivered", "cancelled"],
+      default: "processing",
     },
     currency: {
       type: String,
@@ -65,7 +96,7 @@ const paymentOrderSchema = new mongoose.Schema(
       default: "created",
     },
     items: {
-      type: Array,
+      type: [orderItemSchema],
       default: [],
     },
     orderId: {
@@ -86,6 +117,6 @@ const paymentOrderSchema = new mongoose.Schema(
 paymentOrderSchema.index({ receipt: 1 });
 paymentOrderSchema.index({ "notes.email": 1 });
 
-const PaymentOrder = mongoose.model("PaymentOrder", paymentOrderSchema);
+const Order = mongoose.model("PaymentOrder", paymentOrderSchema);
 
-module.exports = PaymentOrder;
+module.exports = Order;

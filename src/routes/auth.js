@@ -2,7 +2,6 @@ const express = require("express");
 const checkEmailExists = require("../middlewares/emailExists");
 const User = require("../models/user");
 const { isStrongPassword } = require("validator");
-const sendEmail = require("../utils/sendEmail");
 const authRouter = express.Router();
 
 authRouter.post("/signup", checkEmailExists, async (req, res) => {
@@ -34,6 +33,7 @@ authRouter.post("/signup", checkEmailExists, async (req, res) => {
 });
 
 authRouter.post("/signin", async (req, res) => {
+   console.log(req.body);
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
@@ -46,8 +46,6 @@ authRouter.post("/signin", async (req, res) => {
     }
     const token = await user.getJWT();
     res.cookie("token", token);
-    const emailRes = await sendEmail.run();
-    console.log("Email response: ", emailRes);
     res.status(200).json({ message: "User signed in successfully", user });
   } catch (error) {
     res.status(500).json({ error: "Server error" + error.message });
