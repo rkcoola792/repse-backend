@@ -4,6 +4,13 @@ const User = require("../models/user");
 const { isStrongPassword } = require("validator");
 const authRouter = express.Router();
 
+const isProduction = process.env.NODE_ENV === "production";
+const authCookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+};
+
 authRouter.post("/signup", checkEmailExists, async (req, res) => {
   console.log(req.body);
   try {
@@ -45,7 +52,7 @@ authRouter.post("/signin", async (req, res) => {
       return res.status(400).json({ error: "Invalid password" });
     }
     const token = await user.getJWT();
-    res.cookie("token", token);
+    res.cookie("token", token, authCookieOptions);
     res.status(200).json({ message: "User signed in successfully", user });
   } catch (error) {
     res.status(500).json({ error: "Server error" + error.message });
@@ -54,7 +61,7 @@ authRouter.post("/signin", async (req, res) => {
 
 authRouter.post("/signout", (req, res) => {
   try {
-    res.clearCookie("token");
+    res.clearCookie("token", authCookieOptions);
     res.status(200).send("Signout successful");
   } catch (error) {
     res.status(500).send({ error: error.message });
