@@ -37,7 +37,6 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
       },
     };
     const order = await razorpayInstance.orders.create(options);
-    console.log("order", order);
     //save order in database
     const newOrder = new Order({
       userId: req.user._id,
