@@ -9,7 +9,34 @@ productRouter.get("/products", async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const products = await Product.find().skip(skip).limit(limit);
+
+    const filter = {};
+    if (req.query.search) {
+      const regex = { $regex: req.query.search, $options: "i" };
+      filter.$or = [{ name: regex }, { description: regex }, { category: regex }];
+    }
+
+    const products = await Product.find(filter).skip(skip).limit(limit);
+    res.status(200).json(products);
+  } catch (error) {
+    res.status(500).json({ error: "Server error: " + error.message });
+  }
+});
+
+productRouter.get("/products/search-suggestions", async (req, res) => {
+  try {
+    const query = (req.query.q || "").trim();
+    if (!query) {
+      return res.status(200).json([]);
+    }
+
+    const regex = { $regex: query, $options: "i" };
+    const products = await Product.find({
+      $or: [{ name: regex }, { description: regex }, { category: regex }],
+    })
+      .select("name price images category")
+      .limit(6);
+
     res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ error: "Server error: " + error.message });

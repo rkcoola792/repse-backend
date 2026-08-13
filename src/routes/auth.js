@@ -2,6 +2,7 @@ const express = require("express");
 const checkEmailExists = require("../middlewares/emailExists");
 const User = require("../models/user");
 const { isStrongPassword } = require("validator");
+const userAuth = require("../middlewares/auth");
 const authRouter = express.Router();
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -65,6 +66,40 @@ authRouter.post("/signout", (req, res) => {
     res.status(200).send("Signout successful");
   } catch (error) {
     res.status(500).send({ error: error.message });
+  }
+});
+
+authRouter.get("/me", userAuth, (req, res) => {
+  const { password, ...safeUser } = req.user.toObject();
+  res.status(200).json(safeUser);
+});
+
+authRouter.put("/change-password", userAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ error: "Current and new password are required" });
+    }
+
+    const isCurrentValid = await req.user.comparePassword(currentPassword);
+    if (!isCurrentValid) {
+      return res.status(400).json({ error: "Current password is incorrect" });
+    }
+
+    if (!isStrongPassword(newPassword)) {
+      return res
+        .status(400)
+        .json({ error: "New password is not strong enough" });
+    }
+
+    req.user.password = newPassword;
+    await req.user.save();
+
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Server error: " + error.message });
   }
 });
 

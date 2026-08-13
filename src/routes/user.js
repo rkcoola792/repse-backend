@@ -6,7 +6,15 @@ const userRouter = express.Router();
 
 userRouter.get("/get-users", userAuth, adminAuth, async (req, res) => {
   try {
-    const users = await User.find({});
+    const filter = {};
+    if (req.query.search) {
+      filter.$or = [
+        { name: { $regex: req.query.search, $options: "i" } },
+        { lastName: { $regex: req.query.search, $options: "i" } },
+        { email: { $regex: req.query.search, $options: "i" } },
+      ];
+    }
+    const users = await User.find(filter).select("-password");
     res.status(200).json(users);
   } catch (error) {
     res.status(500).json({ error: "Server error: " + error.message });
@@ -64,6 +72,25 @@ userRouter.put("/update-user", userAuth, async (req, res) => {
       message: "User updated successfully",
       user: updatedUser,
     });
+  } catch (error) {
+    res.status(500).json({ error: "Server error: " + error.message });
+  }
+});
+
+userRouter.delete("/user/:id", userAuth, adminAuth, async (req, res) => {
+  try {
+    if (req.params.id === req.user._id.toString()) {
+      return res
+        .status(400)
+        .json({ error: "You cannot delete your own account" });
+    }
+
+    const deletedUser = await User.findByIdAndDelete(req.params.id);
+    if (!deletedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: "Server error: " + error.message });
   }

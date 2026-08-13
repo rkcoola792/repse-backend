@@ -1,7 +1,8 @@
-require('dotenv').config(); 
+require('dotenv').config();
 const express = require("express");
 const app = express();
 const port = 3000;
+const path = require("path");
 const db = require("./config/database.js");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -9,6 +10,7 @@ const authRouter = require('./routes/auth.js');
 const productRouter = require('./routes/product.js');
 const paymentRouter = require('./routes/payment.js');
 const userRouter = require('./routes/user.js');
+const adminRouter = require('./routes/admin.js');
 app.use(
   cors({
     origin: (origin, callback) => callback(null, origin || "*"),
@@ -18,11 +20,13 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }))
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use("/", authRouter);
 app.use("/", productRouter);
 app.use("/", paymentRouter);
 app.use("/", userRouter);
+app.use("/", adminRouter);
 
 
 db().then(() => {
