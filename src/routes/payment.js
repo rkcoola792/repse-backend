@@ -4,8 +4,31 @@ const razorpayInstance = require("../utils/razorpay");
 const userAuth = require("../middlewares/auth");
 const Order = require("../models/payment");
 const Product = require("../models/products");
+const User = require("../models/user");
 const adminAuth = require("../middlewares/adminAuth");
 const crypto = require("crypto");
+const {
+  sendOrderConfirmationEmail,
+  sendAdminOrderNotification,
+} = require("../utils/emailService");
+
+// Fires order emails once payment is confirmed. Email failures are logged
+// inside emailService and never throw, so this can't fail the request.
+const notifyOrderConfirmed = async (order) => {
+  const user = await User.findById(order.userId);
+  const emailOrder = {
+    orderNumber: order.receipt,
+    customerName: order.notes?.first_name || user?.name || "Customer",
+    customerEmail: order.notes?.email || user?.email,
+    totalAmount: order.amount,
+    items: order.items,
+  };
+
+  if (!emailOrder.customerEmail) return;
+
+  await sendOrderConfirmationEmail(emailOrder);
+  await sendAdminOrderNotification(emailOrder);
+};
 
 // Atomically decrements variant stock for each item. The `stock: { $gte: quantity }`
 // condition means a short-on-stock update simply won't match rather than going negative.
@@ -203,6 +226,7 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
 
     if (paymentOrder.status !== "captured" && paymentDetails.status === "captured") {
       await decrementInventory(paymentOrder.items);
+      await notifyOrderConfirmed(paymentOrder);
     }
 
     paymentOrder.status = paymentDetails.status;
@@ -251,6 +275,7 @@ paymentRouter.post("/verify-payment", userAuth, async (req, res) => {
       order.status = "captured";
       order.paymentId = paymentId;
       await order.save();
+      await notifyOrderConfirmed(order);
     }
 
     res

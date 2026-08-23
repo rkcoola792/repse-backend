@@ -11,6 +11,7 @@ const productRouter = require('./routes/product.js');
 const paymentRouter = require('./routes/payment.js');
 const userRouter = require('./routes/user.js');
 const adminRouter = require('./routes/admin.js');
+const testRoutes = require('./routes/testRoutes.js');
 app.use(
   cors({
     origin: (origin, callback) => callback(null, origin || "*"),
@@ -27,6 +28,7 @@ app.use("/", productRouter);
 app.use("/", paymentRouter);
 app.use("/", userRouter);
 app.use("/", adminRouter);
+app.use("/api/test", testRoutes);
 
 
 db().then(() => {
