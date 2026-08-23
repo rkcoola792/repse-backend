@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require("express");
 const app = express();
+app.set("trust proxy", 1);
 const port = 3000;
 const path = require("path");
 const db = require("./config/database.js");

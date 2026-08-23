@@ -9,11 +9,14 @@ const authRouter = express.Router();
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const isProduction = process.env.NODE_ENV === "production";
+// Frontend and backend live on different domains (even in local dev, on
+// different ports), so cookies must be SameSite=None to be sent back on
+// cross-site requests. Browsers treat "localhost" as a secure context, so
+// Secure cookies work there too — no need to branch on NODE_ENV.
 const baseCookieOptions = {
   httpOnly: true,
-  secure: isProduction,
-  sameSite: isProduction ? "none" : "lax",
+  secure: true,
+  sameSite: "none",
 };
 const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15 minutes
 const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
