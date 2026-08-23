@@ -6,14 +6,43 @@ const Order = require("../models/payment");
 const Product = require("../models/products");
 const adminAuth = require("../middlewares/adminAuth");
 const crypto = require("crypto");
+
+// Atomically decrements variant stock for each item. The `stock: { $gte: quantity }`
+// condition means a short-on-stock update simply won't match rather than going negative.
+const decrementInventory = async (items) => {
+  await Promise.all(
+    (items || []).map(async (item) => {
+      if (!item.productId || !item.size || !item.quantity) return;
+      const result = await Product.updateOne(
+        {
+          _id: item.productId,
+          variants: { $elemMatch: { size: item.size, stock: { $gte: item.quantity } } },
+        },
+        { $inc: { "variants.$[v].stock": -item.quantity } },
+        { arrayFilters: [{ "v.size": item.size }] },
+      );
+      if (result.matchedCount === 0) {
+        console.error(
+          `Inventory decrement failed (insufficient stock or missing variant): product=${item.productId} size=${item.size} qty=${item.quantity}`,
+        );
+      }
+    }),
+  );
+};
+
 paymentRouter.post("/create-order", userAuth, async (req, res) => {
   console.log("create order body", req.body);
   try {
     const { amount, currency, receipt, notes, items } = req.body;
+    const stockIssues = [];
 
     const populatedItems = await Promise.all(
       (items || []).map(async (item) => {
         const product = await Product.findById(item.productId);
+        const variant = product?.variants?.find((v) => v.size === item.size);
+        if (product && (!variant || variant.stock < item.quantity)) {
+          stockIssues.push(`"${product.name}" is out of stock in size ${item.size}`);
+        }
         return {
           productId: item.productId,
           name: product ? product.name : item.name,
@@ -24,6 +53,10 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
         };
       }),
     );
+
+    if (stockIssues.length > 0) {
+      return res.status(400).json({ error: stockIssues.join(", ") });
+    }
 
     const options = {
       amount: amount * 100,
@@ -168,6 +201,10 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
 
     console.log("found payment order", paymentOrder);
 
+    if (paymentOrder.status !== "captured" && paymentDetails.status === "captured") {
+      await decrementInventory(paymentOrder.items);
+    }
+
     paymentOrder.status = paymentDetails.status;
     await paymentOrder.save();
     console.log("Payment order updated:", paymentOrder);
@@ -180,36 +217,49 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
   }
 });
 
-// paymentRouter.post("/verify-payment", userAuth, async (req, res) => {
-//   try {
-//     const { paymentId, orderId, signature } = req.body;
+paymentRouter.post("/verify-payment", userAuth, async (req, res) => {
+  try {
+    const { paymentId, orderId, signature } = req.body;
+    if (!paymentId || !orderId || !signature) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Missing payment verification details" });
+    }
 
-//     // Create the expected signature
-//     const text = `${orderId}|${paymentId}`;
-//     const expectedSignature = crypto
-//       .createHmac("sha256", process.env.RAZORPAY_TEST_KEY_SECRET)
-//       .update(text)
-//       .digest("hex");
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_TEST_KEY_SECRET)
+      .update(`${orderId}|${paymentId}`)
+      .digest("hex");
 
-//     // Verify signature
-//     if (expectedSignature === signature) {
-//       // Update order status in database
-//       const order = await Order.findOne({ orderId });
-//       if (order) {
-//         order.status = "captured";
-//         order.paymentId = paymentId;
-//         await order.save();
-//       }
+    if (expectedSignature !== signature) {
+      return res.status(400).json({ success: false, error: "Invalid signature" });
+    }
 
-//       res
-//         .status(200)
-//         .json({ success: true, message: "Payment verified successfully" });
-//     } else {
-//       res.status(400).json({ success: false, message: "Invalid signature" });
-//     }
-//   } catch (error) {
-//     console.error("Error verifying payment:", error);
-//     res.status(500).json({ success: false, error: error.message });
-//   }
-// });
+    const order = await Order.findOne({ orderId });
+    if (!order) {
+      return res.status(404).json({ success: false, error: "Order not found" });
+    }
+    if (
+      order.userId.toString() !== req.user._id.toString() &&
+      req.user.role !== "admin"
+    ) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    if (order.status !== "captured") {
+      await decrementInventory(order.items);
+      order.status = "captured";
+      order.paymentId = paymentId;
+      await order.save();
+    }
+
+    res
+      .status(200)
+      .json({ success: true, message: "Payment verified successfully" });
+  } catch (error) {
+    console.error("Error verifying payment:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = paymentRouter;

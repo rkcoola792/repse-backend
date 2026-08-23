@@ -28,12 +28,24 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      // Not required for accounts created via Google Sign-In (no password to store).
+      required: function () {
+        return !this.googleId;
+      },
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     role: {
       type: String,
       enum: ["user", "admin"],
       default: "user",
+    },
+    refreshTokenHash: {
+      type: String,
+      select: false,
     },
   },
   { timestamps: true }
@@ -42,7 +54,7 @@ const userSchema = new mongoose.Schema(
 userSchema.pre("save", async function (next) {
   const user = this;
   // Only hash if password is modified or new
-  if (!user.isModified("password")) {
+  if (!user.isModified("password") || !user.password) {
     return next();
   }
   try {
@@ -54,15 +66,30 @@ userSchema.pre("save", async function (next) {
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false;
   return await compareHash(candidatePassword, this.password);
 };
 
-userSchema.methods.getJWT = async function () {
-  const user = this; //this will give the current looged in user
-  const token = await jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: "1d",
+userSchema.methods.getAccessToken = function () {
+  return jwt.sign({ id: this._id, type: "access" }, process.env.JWT_SECRET, {
+    expiresIn: "15m",
   });
-  return token;
+};
+
+userSchema.methods.getRefreshToken = function () {
+  return jwt.sign({ id: this._id, type: "refresh" }, process.env.JWT_SECRET, {
+    expiresIn: "30d",
+  });
+};
+
+userSchema.methods.setRefreshToken = async function (refreshToken) {
+  this.refreshTokenHash = refreshToken ? createHash(refreshToken) : undefined;
+  await this.save();
+};
+
+userSchema.methods.compareRefreshToken = function (candidateToken) {
+  if (!this.refreshTokenHash) return false;
+  return compareHash(candidateToken, this.refreshTokenHash);
 };
 
 module.exports = mongoose.model("User", userSchema);

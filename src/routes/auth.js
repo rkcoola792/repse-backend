@@ -1,15 +1,40 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require("google-auth-library");
 const checkEmailExists = require("../middlewares/emailExists");
 const User = require("../models/user");
 const { isStrongPassword } = require("validator");
 const userAuth = require("../middlewares/auth");
 const authRouter = express.Router();
 
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 const isProduction = process.env.NODE_ENV === "production";
-const authCookieOptions = {
+const baseCookieOptions = {
   httpOnly: true,
   secure: isProduction,
   sameSite: isProduction ? "none" : "lax",
+};
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15 minutes
+const REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+const setAuthCookies = async (res, user) => {
+  const accessToken = user.getAccessToken();
+  const refreshToken = user.getRefreshToken();
+  res.cookie("accessToken", accessToken, {
+    ...baseCookieOptions,
+    maxAge: ACCESS_TOKEN_MAX_AGE,
+  });
+  res.cookie("refreshToken", refreshToken, {
+    ...baseCookieOptions,
+    maxAge: REFRESH_TOKEN_MAX_AGE,
+  });
+  await user.setRefreshToken(refreshToken);
+};
+
+const clearAuthCookies = (res) => {
+  res.clearCookie("accessToken", baseCookieOptions);
+  res.clearCookie("refreshToken", baseCookieOptions);
 };
 
 authRouter.post("/signup", checkEmailExists, async (req, res) => {
@@ -52,17 +77,114 @@ authRouter.post("/signin", async (req, res) => {
     if (!isPasswordValid) {
       return res.status(400).json({ error: "Invalid password" });
     }
-    const token = await user.getJWT();
-    res.cookie("token", token, authCookieOptions);
-    res.status(200).json({ message: "User signed in successfully", user });
+    await setAuthCookies(res, user);
+    const { password: _password, refreshTokenHash, ...safeUser } =
+      user.toObject();
+    res
+      .status(200)
+      .json({ message: "User signed in successfully", user: safeUser });
   } catch (error) {
     res.status(500).json({ error: "Server error" + error.message });
   }
 });
 
-authRouter.post("/signout", (req, res) => {
+authRouter.post("/auth/google", async (req, res) => {
   try {
-    res.clearCookie("token", authCookieOptions);
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ error: "Google credential is required" });
+    }
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (error) {
+      return res.status(401).json({ error: "Invalid Google credential" });
+    }
+
+    if (!payload?.email_verified) {
+      return res
+        .status(401)
+        .json({ error: "Google account email is not verified" });
+    }
+
+    let user = await User.findOne({ email: payload.email });
+    if (user) {
+      if (!user.googleId) {
+        user.googleId = payload.sub;
+        await user.save();
+      }
+    } else {
+      user = new User({
+        name: payload.given_name || payload.name || "Google User",
+        lastName: payload.family_name || "",
+        email: payload.email,
+        googleId: payload.sub,
+      });
+      await user.save();
+    }
+
+    await setAuthCookies(res, user);
+    const { password: _password, refreshTokenHash, ...safeUser } =
+      user.toObject();
+    res.status(200).json({ message: "Signed in with Google", user: safeUser });
+  } catch (error) {
+    res.status(500).json({ error: "Server error: " + error.message });
+  }
+});
+
+authRouter.post("/refresh-token", async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token) {
+      return res.status(401).json({ error: "No refresh token provided" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: "Invalid or expired refresh token" });
+    }
+
+    if (decoded.type !== "refresh") {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: "Invalid refresh token" });
+    }
+
+    const user = await User.findById(decoded.id).select("+refreshTokenHash");
+    if (!user || !user.compareRefreshToken(token)) {
+      clearAuthCookies(res);
+      return res.status(401).json({ error: "Refresh token not recognized" });
+    }
+
+    await setAuthCookies(res, user);
+    res.status(200).json({ message: "Token refreshed" });
+  } catch (error) {
+    res.status(500).json({ error: "Server error: " + error.message });
+  }
+});
+
+authRouter.post("/signout", async (req, res) => {
+  try {
+    const token = req.cookies.accessToken || req.cookies.refreshToken;
+    if (token) {
+      try {
+        const decoded = jwt.decode(token);
+        if (decoded?.id) {
+          const user = await User.findById(decoded.id);
+          if (user) await user.setRefreshToken(null);
+        }
+      } catch (error) {
+        // best-effort revocation only — always still clear cookies below
+      }
+    }
+    clearAuthCookies(res);
     res.status(200).send("Signout successful");
   } catch (error) {
     res.status(500).send({ error: error.message });
@@ -95,7 +217,9 @@ authRouter.put("/change-password", userAuth, async (req, res) => {
     }
 
     req.user.password = newPassword;
+    req.user.refreshTokenHash = undefined;
     await req.user.save();
+    clearAuthCookies(res);
 
     res.status(200).json({ message: "Password changed successfully" });
   } catch (error) {
