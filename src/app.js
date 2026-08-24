@@ -23,6 +23,8 @@ const allowedOrigins = [
   process.env.BASE_URL,
   "http://localhost:5173",
   "http://localhost:5174",
+  "https://repse-webapp.onrender.com",
+  "https://repse.in",
   ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()) : []),
 ].filter(Boolean);
 
