@@ -3,6 +3,7 @@ const productRouter = express.Router();
 const Product = require("../models/products");
 const userAuth = require("../middlewares/auth");
 const adminAuth = require("../middlewares/adminAuth");
+const { escapeRegex } = require("../utils/escapeRegex");
 
 productRouter.get("/products", async (req, res) => {
   try {
@@ -12,7 +13,7 @@ productRouter.get("/products", async (req, res) => {
 
     const filter = {};
     if (req.query.search) {
-      const regex = { $regex: req.query.search, $options: "i" };
+      const regex = { $regex: escapeRegex(req.query.search), $options: "i" };
       filter.$or = [{ name: regex }, { description: regex }, { category: regex }];
     }
 
@@ -30,7 +31,7 @@ productRouter.get("/products/search-suggestions", async (req, res) => {
       return res.status(200).json([]);
     }
 
-    const regex = { $regex: query, $options: "i" };
+    const regex = { $regex: escapeRegex(query), $options: "i" };
     const products = await Product.find({
       $or: [{ name: regex }, { description: regex }, { category: regex }],
     })

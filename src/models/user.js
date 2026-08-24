@@ -83,13 +83,13 @@ userSchema.methods.getRefreshToken = function () {
 };
 
 userSchema.methods.setRefreshToken = async function (refreshToken) {
-  this.refreshTokenHash = refreshToken ? createHash(refreshToken) : undefined;
+  this.refreshTokenHash = refreshToken ? await createHash(refreshToken) : undefined;
   await this.save();
 };
 
-userSchema.methods.compareRefreshToken = function (candidateToken) {
+userSchema.methods.compareRefreshToken = async function (candidateToken) {
   if (!this.refreshTokenHash) return false;
-  return compareHash(candidateToken, this.refreshTokenHash);
+  return await compareHash(candidateToken, this.refreshTokenHash);
 };
 
 module.exports = mongoose.model("User", userSchema);

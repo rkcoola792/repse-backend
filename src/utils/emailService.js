@@ -4,6 +4,18 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = "onboarding@resend.dev";
 
+// Order/product fields are interpolated straight into HTML email bodies —
+// escape them so a crafted name/product title can't inject markup or links
+// into an email sent to a customer or the store admin.
+const escapeHtml = (value) =>
+  String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[char]);
+
 const sendTestEmail = async () => {
   const result = await resend.emails.send({
     from: FROM_EMAIL,
@@ -32,15 +44,15 @@ const sendOrderConfirmationEmail = async (order) => {
         (item) => `
           <tr>
             <td style="padding: 8px;">
-              ${item.name}
+              ${escapeHtml(item.name)}
             </td>
 
             <td style="padding: 8px;">
-              ${item.quantity}
+              ${escapeHtml(item.quantity)}
             </td>
 
             <td style="padding: 8px;">
-              ₹${item.price}
+              ₹${escapeHtml(item.price)}
             </td>
           </tr>
         `
@@ -60,12 +72,12 @@ const sendOrderConfirmationEmail = async (order) => {
           <h2>Thank you for your order! 🎉</h2>
 
           <p>
-            Hi ${order.customerName},
+            Hi ${escapeHtml(order.customerName)},
           </p>
 
           <p>
             Your order
-            <strong>#${order.orderNumber}</strong>
+            <strong>#${escapeHtml(order.orderNumber)}</strong>
             has been confirmed.
           </p>
 
@@ -101,7 +113,7 @@ const sendOrderConfirmationEmail = async (order) => {
           <hr />
 
           <h3>
-            Total: ₹${order.totalAmount}
+            Total: ₹${escapeHtml(order.totalAmount)}
           </h3>
 
           <p>
@@ -130,9 +142,9 @@ const sendAdminOrderNotification = async (order) => {
       .map(
         (item) => `
           <li>
-            ${item.name}
-            × ${item.quantity}
-            — ₹${item.price * item.quantity}
+            ${escapeHtml(item.name)}
+            × ${escapeHtml(item.quantity)}
+            — ₹${escapeHtml(item.price * item.quantity)}
           </li>
         `
       )
@@ -151,22 +163,22 @@ const sendAdminOrderNotification = async (order) => {
           <h2>🛒 New Order Received</h2>
 
           <h3>
-            Order #${order.orderNumber}
+            Order #${escapeHtml(order.orderNumber)}
           </h3>
 
           <p>
             <strong>Customer:</strong>
-            ${order.customerName}
+            ${escapeHtml(order.customerName)}
           </p>
 
           <p>
             <strong>Email:</strong>
-            ${order.customerEmail}
+            ${escapeHtml(order.customerEmail)}
           </p>
 
           <p>
             <strong>Total:</strong>
-            ₹${order.totalAmount}
+            ₹${escapeHtml(order.totalAmount)}
           </p>
 
           <h3>Items</h3>

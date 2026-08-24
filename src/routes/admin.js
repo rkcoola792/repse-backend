@@ -6,6 +6,7 @@ const User = require("../models/user");
 const userAuth = require("../middlewares/auth");
 const adminAuth = require("../middlewares/adminAuth");
 const { upload } = require("../middlewares/upload");
+const { escapeRegex } = require("../utils/escapeRegex");
 
 const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
@@ -201,7 +202,7 @@ adminRouter.get("/admin/products", userAuth, adminAuth, async (req, res) => {
 
     const filter = {};
     if (req.query.search) {
-      filter.name = { $regex: req.query.search, $options: "i" };
+      filter.name = { $regex: escapeRegex(req.query.search), $options: "i" };
     }
     if (req.query.category) {
       filter.category = req.query.category;

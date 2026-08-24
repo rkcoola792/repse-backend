@@ -113,9 +113,10 @@ const paymentOrderSchema = new mongoose.Schema(
   },
 );
 
-// Index for faster queries
-paymentOrderSchema.index({ receipt: 1 });
+// receipt already gets a unique index from `unique: true` above.
 paymentOrderSchema.index({ "notes.email": 1 });
+// Speeds up GET /my-orders (find by userId, sort by createdAt desc).
+paymentOrderSchema.index({ userId: 1, createdAt: -1 });
 
 const Order = mongoose.model("PaymentOrder", paymentOrderSchema);
 

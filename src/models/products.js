@@ -52,4 +52,7 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Speeds up category filtering on /admin/products.
+productSchema.index({ category: 1 });
+
 module.exports = mongoose.model("Product", productSchema);

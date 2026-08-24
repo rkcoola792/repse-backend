@@ -2,16 +2,18 @@ const express = require("express");
 const User = require("../models/user");
 const adminAuth = require("../middlewares/adminAuth");
 const userAuth = require("../middlewares/auth");
+const { escapeRegex } = require("../utils/escapeRegex");
 const userRouter = express.Router();
 
 userRouter.get("/get-users", userAuth, adminAuth, async (req, res) => {
   try {
     const filter = {};
     if (req.query.search) {
+      const searchRegex = { $regex: escapeRegex(req.query.search), $options: "i" };
       filter.$or = [
-        { name: { $regex: req.query.search, $options: "i" } },
-        { lastName: { $regex: req.query.search, $options: "i" } },
-        { email: { $regex: req.query.search, $options: "i" } },
+        { name: searchRegex },
+        { lastName: searchRegex },
+        { email: searchRegex },
       ];
     }
     const users = await User.find(filter).select("-password");

@@ -41,7 +41,6 @@ const clearAuthCookies = (res) => {
 };
 
 authRouter.post("/signup", checkEmailExists, async (req, res) => {
-  console.log(req.body);
   try {
     const { name, email, password } = req.body;
     const strongPassword = await isStrongPassword(password);
@@ -69,7 +68,6 @@ authRouter.post("/signup", checkEmailExists, async (req, res) => {
 });
 
 authRouter.post("/signin", async (req, res) => {
-   console.log(req.body);
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
@@ -161,7 +159,7 @@ authRouter.post("/refresh-token", async (req, res) => {
     }
 
     const user = await User.findById(decoded.id).select("+refreshTokenHash");
-    if (!user || !user.compareRefreshToken(token)) {
+    if (!user || !(await user.compareRefreshToken(token))) {
       clearAuthCookies(res);
       return res.status(401).json({ error: "Refresh token not recognized" });
     }
@@ -213,7 +211,7 @@ authRouter.put("/change-password", userAuth, async (req, res) => {
       return res.status(400).json({ error: "Current password is incorrect" });
     }
 
-    if (!isStrongPassword(newPassword)) {
+    if (!(await isStrongPassword(newPassword))) {
       return res
         .status(400)
         .json({ error: "New password is not strong enough" });

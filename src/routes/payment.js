@@ -7,6 +7,15 @@ const Product = require("../models/products");
 const User = require("../models/user");
 const adminAuth = require("../middlewares/adminAuth");
 const crypto = require("crypto");
+
+// Constant-time comparison so signature checks can't be timed to leak
+// bytes of the expected HMAC.
+const safeCompare = (a, b) => {
+  const bufA = Buffer.from(a || "", "utf8");
+  const bufB = Buffer.from(b || "", "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+};
 const {
   sendOrderConfirmationEmail,
   sendAdminOrderNotification,
@@ -54,25 +63,33 @@ const decrementInventory = async (items) => {
 };
 
 paymentRouter.post("/create-order", userAuth, async (req, res) => {
-  console.log("create order body", req.body);
   try {
-    const { amount, currency, receipt, notes, items } = req.body;
+    const { currency, receipt, notes, items } = req.body;
     const stockIssues = [];
 
+    // Prices, names and images always come from the DB — never from the
+    // client — so a tampered request can't buy items at an attacker-chosen
+    // price or invent line items for products that don't exist.
     const populatedItems = await Promise.all(
       (items || []).map(async (item) => {
         const product = await Product.findById(item.productId);
-        const variant = product?.variants?.find((v) => v.size === item.size);
-        if (product && (!variant || variant.stock < item.quantity)) {
+        if (!product) {
+          stockIssues.push("One or more items in your cart are no longer available");
+          return null;
+        }
+        const quantity = Number(item.quantity) > 0 ? Number(item.quantity) : 0;
+        const variant = product.variants?.find((v) => v.size === item.size);
+        if (!quantity || !variant || variant.stock < quantity) {
           stockIssues.push(`"${product.name}" is out of stock in size ${item.size}`);
+          return null;
         }
         return {
-          productId: item.productId,
-          name: product ? product.name : item.name,
-          image: product ? product.images?.[0] : item.image,
+          productId: product._id,
+          name: product.name,
+          image: product.images?.[0],
           size: item.size,
-          quantity: item.quantity,
-          price: product ? product.price : item.price,
+          quantity,
+          price: product.price,
         };
       }),
     );
@@ -81,15 +98,24 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
       return res.status(400).json({ error: stockIssues.join(", ") });
     }
 
+    const amount = populatedItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
+
     const options = {
-      amount: amount * 100,
-      currency,
+      amount: Math.round(amount * 100),
+      currency: currency || "INR",
       receipt,
       payment_capture: 1,
       notes: {
-        // first_name: req.user.name,
-        // email: req.user.email,
         ...notes,
+        // first_name/email drive the order-confirmation email's recipient and
+        // greeting, so they come from the authenticated user, not the
+        // request body — otherwise a client could redirect the confirmation
+        // email anywhere or inject arbitrary content into it.
+        first_name: req.user.name,
+        email: req.user.email,
       },
     };
     const order = await razorpayInstance.orders.create(options);
@@ -161,7 +187,6 @@ paymentRouter.put(
   userAuth,
   adminAuth,
   async (req, res) => {
-    console.log("update delivery status body", req.body);
     try {
       const { deliveryStatus, orderId } = req.body;
 
@@ -200,29 +225,22 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
       .digest("hex");
 
     // Validate signature
-    const isWebhookValid = expectedSignature === signature;
+    const isWebhookValid = safeCompare(expectedSignature, signature);
 
     if (!isWebhookValid) {
-      console.log("webhook not valid");
       return res.status(400).json({ error: "Invalid webhook signature" });
     }
 
-    console.log("webhook valid");
-
     // Update payment details in database
     const paymentDetails = req.body.payload.payment.entity;
-    console.log("payment details", paymentDetails);
 
     const paymentOrder = await Order.findOne({
       orderId: paymentDetails.order_id,
     });
 
     if (!paymentOrder) {
-      console.log("Payment order not found");
       return res.status(404).json({ error: "Order not found" });
     }
-
-    console.log("found payment order", paymentOrder);
 
     if (paymentOrder.status !== "captured" && paymentDetails.status === "captured") {
       await decrementInventory(paymentOrder.items);
@@ -231,7 +249,6 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
 
     paymentOrder.status = paymentDetails.status;
     await paymentOrder.save();
-    console.log("Payment order updated:", paymentOrder);
 
     // Return success response to razorpay
     res.status(200).json({ status: "ok" });
@@ -255,7 +272,7 @@ paymentRouter.post("/verify-payment", userAuth, async (req, res) => {
       .update(`${orderId}|${paymentId}`)
       .digest("hex");
 
-    if (expectedSignature !== signature) {
+    if (!safeCompare(expectedSignature, signature)) {
       return res.status(400).json({ success: false, error: "Invalid signature" });
     }
 
