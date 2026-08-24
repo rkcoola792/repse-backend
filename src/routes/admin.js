@@ -7,6 +7,7 @@ const userAuth = require("../middlewares/auth");
 const adminAuth = require("../middlewares/adminAuth");
 const { upload } = require("../middlewares/upload");
 const { escapeRegex } = require("../utils/escapeRegex");
+const cloudinary = require("../config/cloudinary");
 
 const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
@@ -224,18 +225,31 @@ adminRouter.get("/admin/products", userAuth, adminAuth, async (req, res) => {
   }
 });
 
+const uploadBufferToCloudinary = (buffer) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "repse/products" },
+      (err, result) => (err ? reject(err) : resolve(result)),
+    );
+    stream.end(buffer);
+  });
+
 adminRouter.post("/admin/upload-images", userAuth, adminAuth, (req, res) => {
-  upload.array("images", 8)(req, res, (err) => {
+  upload.array("images", 8)(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.message });
     }
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "No images uploaded" });
     }
-    const urls = req.files.map(
-      (file) => `${req.protocol}://${req.get("host")}/uploads/${file.filename}`,
-    );
-    res.status(200).json({ urls });
+    try {
+      const results = await Promise.all(
+        req.files.map((file) => uploadBufferToCloudinary(file.buffer)),
+      );
+      res.status(200).json({ urls: results.map((r) => r.secure_url) });
+    } catch (error) {
+      res.status(500).json({ error: "Image upload failed: " + error.message });
+    }
   });
 });
 

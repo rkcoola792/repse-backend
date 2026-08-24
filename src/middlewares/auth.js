@@ -5,7 +5,9 @@ const userAuth = async (req, res, next) => {
   const token = req.cookies.accessToken;
   try {
     if (!token) {
-      return res.status(401).send({ error: "Unauthorized access" });
+      return res
+        .status(401)
+        .send({ error: "Access token expired", code: "TOKEN_EXPIRED" });
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.type !== "access") {
