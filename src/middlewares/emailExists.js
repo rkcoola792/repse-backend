@@ -8,7 +8,8 @@ const checkEmailExists = async (req, res, next) => {
     }
     next();
   } catch (error) {
-    return res.status(500).json({ error: "Server error" + error.message });
+    console.error("Email availability check failed:", error);
+    return res.status(500).json({ error: "Could not validate email address" });
   }
 };
 module.exports = checkEmailExists;

@@ -106,7 +106,7 @@ adminRouter.get("/admin/dashboard-stats", userAuth, adminAuth, async (req, res) 
       })),
     });
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -191,7 +191,7 @@ adminRouter.get("/admin/analytics", userAuth, adminAuth, async (req, res) => {
       repeatCustomerRate,
     });
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -221,7 +221,7 @@ adminRouter.get("/admin/products", userAuth, adminAuth, async (req, res) => {
       pages: Math.max(Math.ceil(total / limit), 1),
     });
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -248,7 +248,7 @@ adminRouter.post("/admin/upload-images", userAuth, adminAuth, (req, res) => {
       );
       res.status(200).json({ urls: results.map((r) => r.secure_url) });
     } catch (error) {
-      res.status(500).json({ error: "Image upload failed: " + error.message });
+      res.status(500).json({ error: "Image upload failed" });
     }
   });
 });

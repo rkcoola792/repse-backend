@@ -7,20 +7,25 @@ const { escapeRegex } = require("../utils/escapeRegex");
 
 productRouter.get("/products", async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), Number(process.env.PUBLIC_PRODUCT_PAGE_MAX) || 100);
     const skip = (page - 1) * limit;
 
     const filter = {};
+    const clauses = [];
     if (req.query.search) {
       const regex = { $regex: escapeRegex(req.query.search), $options: "i" };
-      filter.$or = [{ name: regex }, { description: regex }, { category: regex }];
+      clauses.push({ $or: [{ name: regex }, { description: regex }, { category: regex }] });
     }
+    if (req.query.category) {
+      clauses.push({ category: { $regex: `^${escapeRegex(req.query.category)}$`, $options: "i" } });
+    }
+    if (clauses.length) filter.$and = clauses;
 
     const products = await Product.find(filter).skip(skip).limit(limit);
     res.status(200).json(products);
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -40,7 +45,7 @@ productRouter.get("/products/search-suggestions", async (req, res) => {
 
     res.status(200).json(products);
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -72,7 +77,7 @@ productRouter.post("/product", userAuth, adminAuth, async (req, res) => {
       product: newProduct,
     });
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -84,7 +89,7 @@ productRouter.get("/product/:id", async (req, res) => {
     }
     res.status(200).json(product);
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -93,7 +98,7 @@ productRouter.patch("/product/:id", userAuth, adminAuth, async (req, res) => {
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
+      { new: true, runValidators: true }
     );
     if (!updatedProduct) {
       return res.status(404).json({ error: "Product not found" });
@@ -103,7 +108,7 @@ productRouter.patch("/product/:id", userAuth, adminAuth, async (req, res) => {
       product: updatedProduct,
     });
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -118,7 +123,7 @@ productRouter.delete("/product/:id", userAuth, adminAuth, async (req, res) => {
       product: deletedProduct,
     });
   } catch (error) {
-    res.status(500).json({ error: "Server error: " + error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

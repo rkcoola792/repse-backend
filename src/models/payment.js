@@ -45,7 +45,7 @@ const paymentOrderSchema = new mongoose.Schema(
     },
     deliveryStatus: {
       type: String,
-      enum: ["processing", "intransit", "delivered", "cancelled"],
+      enum: ["processing", "intransit", "delivered", "cancelled", "stock_issue"],
       default: "processing",
     },
     currency: {
@@ -53,7 +53,7 @@ const paymentOrderSchema = new mongoose.Schema(
       required: true,
       uppercase: true,
       default: "INR",
-      enum: ["INR", "USD", "EUR", "GBP", "AUD", "CAD"], // Add more currencies as needed
+      enum: ["INR"],
     },
     receipt: {
       type: String,

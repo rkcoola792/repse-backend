@@ -37,6 +37,17 @@ const sendTestEmail = async () => {
   return result;
 };
 
+const sendLoginOtpEmail = async (email, code) => {
+  const result = await resend.emails.send({
+    from: FROM_EMAIL,
+    to: [email],
+    subject: "Your REPSE sign-in code",
+    html: `<div style="font-family:Arial,sans-serif;color:#111"><h2>Your sign-in code</h2><p>Enter this code to sign in to REPSE:</p><p style="font-size:28px;font-weight:bold;letter-spacing:8px">${escapeHtml(code)}</p><p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p></div>`,
+  });
+  if (result?.error) throw new Error("Could not send sign-in email");
+  return result;
+};
+
 const sendOrderConfirmationEmail = async (order) => {
   try {
     const itemsHtml = order.items
@@ -205,6 +216,7 @@ const sendAdminOrderNotification = async (order) => {
 
 module.exports = {
   sendTestEmail,
+  sendLoginOtpEmail,
   sendOrderConfirmationEmail,
   sendAdminOrderNotification,
 };

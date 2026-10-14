@@ -25,12 +25,28 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
     },
+    emailVerifiedAt: { type: Date },
+    /* Phone OTP fields are paused until SMS verification is enabled:
+    phoneVerifiedAt: { type: Date },
+    phoneLogin: { type: String, unique: true, sparse: true, select: false },
+    phoneOtpHash: { type: String, select: false },
+    phoneOtpExpiresAt: { type: Date, select: false },
+    phoneOtpSentAt: { type: Date, select: false },
+    phoneOtpAttempts: { type: Number, default: 0, select: false },
+    */
+    loginOtpHash: { type: String, select: false },
+    loginOtpExpiresAt: { type: Date, select: false },
+    loginOtpSentAt: { type: Date, select: false },
+    loginOtpAttempts: { type: Number, default: 0, select: false },
     password: {
       type: String,
       // Not required for accounts created via Google Sign-In (no password to store).
       required: function () {
-        return !this.googleId;
+        return !this.googleId && !this.emailVerifiedAt && !this.loginOtpHash;
       },
     },
     googleId: {
@@ -50,6 +66,10 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// User login indexes are installed by config/database.js so the existing
+// email unique index can be migrated safely to sparse for phone-only users.
+userSchema.set("autoIndex", false);
 
 userSchema.pre("save", async function (next) {
   const user = this;

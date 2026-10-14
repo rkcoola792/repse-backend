@@ -1,8 +1,8 @@
 require('dotenv').config();
 const express = require("express");
 const app = express();
-app.set("trust proxy", 1);
-const port = 3000;
+app.set("trust proxy", process.env.TRUST_PROXY_HOPS ? Number(process.env.TRUST_PROXY_HOPS) : 1);
+const port = Number(process.env.PORT) || 3000;
 const path = require("path");
 const db = require("./config/database.js");
 const cookieParser = require("cookie-parser");
@@ -14,6 +14,7 @@ const productRouter = require('./routes/product.js');
 const paymentRouter = require('./routes/payment.js');
 const userRouter = require('./routes/user.js');
 const adminRouter = require('./routes/admin.js');
+const newsletterRouter = require('./routes/newsletter.js');
 
 app.use(helmet());
 // Reflecting any Origin back while allowing credentials lets any website
@@ -21,10 +22,6 @@ app.use(helmet());
 // origins explicitly listed here (or in ALLOWED_ORIGINS) are trusted.
 const allowedOrigins = [
   process.env.BASE_URL,
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "https://repse-webapp.onrender.com",
-  "https://repse.in",
   ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()) : []),
 ].filter(Boolean);
 
@@ -40,8 +37,10 @@ app.use(
   })
 );
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }))
+// Razorpay signs the exact bytes it sends; keep the webhook body untouched until verification.
+app.use("/payment/webhook", express.raw({ type: "application/json", limit: "1mb" }));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: process.env.FORM_BODY_LIMIT || "100kb" }));
 // Helmet's default same-origin resource policy blocks the frontend (a
 // different origin) from loading product images served here — product
 // images are meant to be publicly embeddable, so relax it just for this path.
@@ -59,16 +58,19 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many attempts, please try again later" },
 });
-app.use(["/signin", "/signup", "/refresh-token", "/auth/google"], authLimiter);
+app.use(["/signin", "/signup", "/refresh-token", "/auth/google", "/request-login-otp", "/verify-login-otp"], authLimiter);
+// Add these again when re-enabling the commented Twilio routes:
+// app.use(["/request-phone-otp", "/verify-phone-otp"], authLimiter);
 
 app.use("/", authRouter);
 app.use("/", productRouter);
 app.use("/", paymentRouter);
 app.use("/", userRouter);
 app.use("/", adminRouter);
+app.use("/", newsletterRouter);
 
 // Sends real emails and isn't authenticated — dev-only diagnostics, never mounted in production.
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
   app.use("/api/test", require("./routes/testRoutes.js"));
 }
 
