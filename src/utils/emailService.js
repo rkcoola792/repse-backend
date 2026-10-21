@@ -2,7 +2,7 @@ const { Resend } = require("resend");
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = "onboarding@resend.dev";
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
 // Order/product fields are interpolated straight into HTML email bodies —
 // escape them so a crafted name/product title can't inject markup or links
@@ -44,7 +44,7 @@ const sendLoginOtpEmail = async (email, code) => {
     subject: "Your REPSE sign-in code",
     html: `<div style="font-family:Arial,sans-serif;color:#111"><h2>Your sign-in code</h2><p>Enter this code to sign in to REPSE:</p><p style="font-size:28px;font-weight:bold;letter-spacing:8px">${escapeHtml(code)}</p><p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p></div>`,
   });
-  if (result?.error) throw new Error("Could not send sign-in email");
+  if (result?.error) throw new Error(result.error.message || "Could not send sign-in email");
   return result;
 };
 

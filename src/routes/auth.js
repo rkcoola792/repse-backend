@@ -55,23 +55,25 @@ authRouter.post("/request-login-otp", async (req, res) => {
       return res.status(400).json({ error: "Enter a valid email address" });
     }
 
-    let user = await User.findOne({
+    const existingUser = await User.findOne({
       $expr: { $eq: [{ $toLower: "$email" }, email] },
     }).select("+loginOtpSentAt");
-    if (user?.loginOtpSentAt && Date.now() - user.loginOtpSentAt.getTime() < OTP_RESEND_DELAY_MS) {
+    if (existingUser?.loginOtpSentAt && Date.now() - existingUser.loginOtpSentAt.getTime() < OTP_RESEND_DELAY_MS) {
       return res.status(200).json({ message: "If a sign-in code can be sent, it has been sent" });
     }
 
     const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
-    if (!user) {
-      user = new User({
-        name: email.split("@")[0],
-        email,
-        mobile: "",
-        address: "",
-        gender: "other",
-      });
-    } else if (user.email !== email) {
+    // Send first so a rejected recipient does not create a user or cooldown.
+    await sendLoginOtpEmail(email, code);
+
+    const user = existingUser || new User({
+      name: email.split("@")[0],
+      email,
+      mobile: "",
+      address: "",
+      gender: "other",
+    });
+    if (user.email !== email) {
       user.email = email;
     }
     user.loginOtpHash = hashOtp(email, code);
@@ -79,7 +81,6 @@ authRouter.post("/request-login-otp", async (req, res) => {
     user.loginOtpSentAt = new Date();
     user.loginOtpAttempts = 0;
     await user.save();
-    await sendLoginOtpEmail(email, code);
     return res.status(200).json({ message: "If a sign-in code can be sent, it has been sent" });
   } catch (error) {
     console.error("Could not send login OTP:", error.message);
