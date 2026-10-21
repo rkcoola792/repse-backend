@@ -40,7 +40,7 @@ productRouter.get("/products/search-suggestions", async (req, res) => {
     const products = await Product.find({
       $or: [{ name: regex }, { description: regex }, { category: regex }],
     })
-      .select("name price images category")
+      .select("name price images primaryImage category")
       .limit(6);
 
     res.status(200).json(products);
@@ -57,6 +57,7 @@ productRouter.post("/product", userAuth, adminAuth, async (req, res) => {
       description,
       category,
       images,
+      primaryImage,
       newArrival,
       topSelling,
       variants,
@@ -67,6 +68,7 @@ productRouter.post("/product", userAuth, adminAuth, async (req, res) => {
       description,
       category,
       images,
+      primaryImage: primaryImage || images?.[0] || "",
       newArrival,
       topSelling,
       variants,

@@ -41,6 +41,10 @@ const productSchema = new mongoose.Schema(
       type: [String],
       required: true,
     },
+    primaryImage: {
+      type: String,
+      default: "",
+    },
     variants: [variantSchema],  // Simplified - removed validation
     topSelling: {
       type: Boolean,

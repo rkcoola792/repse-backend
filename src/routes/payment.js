@@ -169,7 +169,7 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
         return {
           productId: product._id,
           name: product.name,
-          image: product.images?.[0],
+          image: product.primaryImage || product.images?.[0],
           size: item.size,
           quantity,
           price: product.price,
@@ -222,6 +222,10 @@ paymentRouter.post("/create-order", userAuth, async (req, res) => {
     const savedOrder = await newOrder.save();
     res.status(200).json({
       ...savedOrder.toJSON(),
+      // Razorpay Checkout expects currency subunits (paise for INR); the
+      // stored order amount remains in rupees for customer/admin summaries.
+      amount: order.amount,
+      totalAmount: savedOrder.amount,
       keyId: razorpayCredentials.key_id,
     });
   } catch (error) {
